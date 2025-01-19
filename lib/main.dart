@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:csv/csv.dart';
-import 'package:flutter/services.dart';
-import 'package:webview_flutter/webview_flutter.dart';
+import 'dart:html' as html;
+import 'dart:ui' as ui;
 
 void main() {
   runApp(const MyApp());
@@ -17,6 +16,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
+      debugShowCheckedModeBanner: false,
       home: const LiveCameraPage(),
     );
   }
@@ -30,185 +30,93 @@ class LiveCameraPage extends StatefulWidget {
 }
 
 class _LiveCameraPageState extends State<LiveCameraPage> {
-  List<List<dynamic>> _cameraData = [];
-  List<String> _categories = [];
-  int _currentCategoryIndex = 0;
-  late PageController _verticalController;
-  double _currentPage = 0;
-  final Map<String, WebViewController> _controllers = {};
+  final List<Map<String, String>> cameraData = [
+    {"title": "「LIVE CAMERA」草津温泉・温泉門 - YouTube", "category": "観光", "youtubeId": "d6a0sL8lYGkQ"},
+    {"title": "「LIVECAMERA 」西の河原露天風呂入り口 - YouTube", "category": "観光", "youtubeId": "RJYYbPs8hjQ"},
+    {"title": "「LIVE CAMERA」草津温泉スキー場　天狗山山頂エリア - YouTube", "category": "カテゴリ2", "youtubeId": "JDLSr4iqjIg"},
+    {"title": "🔴【生中継】京都タワー Kyoto Japan Live Camera 🌙京都ライブカメラ 🏢🗼🕯🎑　森信三郎商舗より生中継 🌕 即時影像 LiveCam　天気 京都観光 天体 - YouTube", "category": "観光", "youtubeId": "IQKJPxjnjUw"},
+    {"title": "🔴🎥【LIVE】京都ライブカメラ 東本願寺 (KYOTO JAPAN LIVE CAMERA) 森信三郎商舗から生中継 即時影像 livecam　#nhk紅白歌合戦 #Ado #聖地 - YouTube", "category": "観光", "youtubeId": "aT3saBHTTyE"},
+    {"title": "浅草寺の境内（本堂側）Precincts of Sensoji Temple (to Main Hall) - YouTube", "category": "観光", "youtubeId": "nOk4cd0kkp8"},
+    {"title": "浅草寺の境内（雷門側）Precincts of Sensoji Temple (to Kaminarimon) - YouTube", "category": "観光", "youtubeId": "hBiBadOukZA"},
+    {"title": "【LIVE CAMERA】#南丹 #紅葉峠展望台 #ライブカメラ #livecamera #nantan #momijitougetenboudai - YouTube", "category": "カテゴリ2", "youtubeId": "Kdvg84_mL8Q"},
+    {"title": "【ライブ】群馬県・高崎市 高崎駅周辺から24時間LIVE配信中！【LIVE: Takasaki,Gunma Takasaki Station】ANN/テレ朝 - YouTube", "category": "観光", "youtubeId": "YZcRxaKmvU4"},
+    {"title": "海王丸ライブカメラ - YouTube", "category": "海岸", "youtubeId": "-UsW0JsRZXM"},
+    {"title": "横須賀市災害監視カメラ　うみかぜ公園 - YouTube", "category": "海岸", "youtubeId": "Yj4CHgedlVw"},
+    {"title": "八幡浜港フェリーターミナル ライブカメラ 海 4K　Yawatahama Port Ferry Terminal Live camera Sea side - YouTube", "category": "海岸", "youtubeId": "XJ-o3WNR6Fk"},
+    {"title": "部原海岸ライブカメラ（千葉県勝浦市部原） - YouTube", "category": "海岸", "youtubeId": "z3TH-h6UtsE"},
+    {"title": "🔴【LIVE】那覇空港・瀬長島・沖縄ライブカメラ【海と飛行機の見えるステーキ専門店 ヨナーズガーデン】Okinawa Naha Airport Yonars Garden - YouTube", "category": "海岸", "youtubeId": "-0wTh5KKSoE"},
+    {"title": "尼崎市立魚つり公園 - YouTube", "category": "海岸", "youtubeId": "2dS0y7TZCPA"},
+    {"title": "新潟日報メディアシップ２０階のライブカメラ【北側】　Live Camera in Niigata - YouTube - YouTube", "category": "海岸", "youtubeId": "npUguwCxiwI"},
+    {"title": "元町港（大島） - YouTube", "category": "海岸", "youtubeId": "fVFhLgVTtQ0"},
+    {"title": "【LIVE】明石海峡大橋ライブカメラ　瀬戸内海や淡路島の現在の様子　Akashi kaikyo Bridge and Awaji island - YouTube", "category": "海岸", "youtubeId": "TmoR3-XKgcI"},
+  ];
+
+  late PageController _pageController;
 
   @override
   void initState() {
     super.initState();
-    _verticalController = PageController(viewportFraction: 0.75);
-    _verticalController.addListener(_onVerticalScroll);
-    _loadCameraData();
+    _pageController = PageController();
+    _preloadVideos();
+  }
+
+  /// iframeを登録して動画をプリロード
+  void _preloadVideos() {
+    for (int i = 0; i < cameraData.length; i++) {
+      final embedUrl =
+          'https://www.youtube.com/embed/${cameraData[i]['youtubeId']}?autoplay=0&rel=0&modestbranding=1';
+
+      // ignore: undefined_prefixed_name
+      ui.platformViewRegistry.registerViewFactory(
+        'youtube-iframe-$i',
+        (int viewId) {
+          return html.IFrameElement()
+            ..src = embedUrl
+            ..style.border = 'none'
+            ..allowFullscreen = true;
+        },
+      );
+    }
   }
 
   @override
-  void dispose() {
-    _verticalController.dispose();
-    super.dispose();
-  }
-
-  void _onVerticalScroll() {
-    setState(() {
-      _currentPage = _verticalController.page ?? 0;
-    });
-  }
-
-  Future<void> _loadCameraData() async {
-    final rawData = await rootBundle.loadString('assets/japan-livecamera_data.csv');
-    List<List<dynamic>> listData = const CsvToListConverter().convert(rawData);
-    
-    listData = listData.sublist(1);
-    
-    Set<String> categorySet = {};
-    for (var row in listData) {
-      categorySet.add(row[3] as String);
-    }
-    
-    setState(() {
-      _cameraData = listData;
-      _categories = categorySet.toList();
-    });
-  }
-
-  String _getVideoIdFromUrl(String url) {
-    final regExp = RegExp(
-      r'(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})');
-    final match = regExp.firstMatch(url);
-    return (match?.group(1) ?? '');
-  }
-
-  String _getEmbedUrl(String videoId) {
-  return 'https://www.youtube.com/embed/$videoId?autoplay=0&rel=0&modestbranding=1&enablejsapi=1';
-}
-
-
-  Widget _buildVideoPlayer(String videoUrl, double scale) {
-    final videoId = _getVideoIdFromUrl(videoUrl);
-    if (videoId.isEmpty) {
-      return const Center(
-        child: Text('無効なURLです。動画を表示できません。'),
-      );
-    }
-    final String embedUrl = _getEmbedUrl(videoId);
-
-    final controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..loadRequest(Uri.parse(embedUrl));
-
-    _controllers[videoId] = controller;
-
-    return Transform.scale(
-      scale: scale,
-      child: AspectRatio(
-        aspectRatio: 16 / 9,
-        child: WebViewWidget(
-          controller: controller,
-        ),
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('ライブマップ'),
       ),
-    );
-  }
-
-  List<List<dynamic>> _getVideosForCategory(String category) {
-    return _cameraData.where((row) => row[3] == category).toList();
-  }
-
-  Widget _buildVideoItem(List<dynamic> videoData, int index, double currentPage) {
-    final double distanceFromCenter = (index - currentPage).abs();
-    final double scale = 1.0 - (distanceFromCenter * 0.2).clamp(0.0, 0.4);
-    final double opacity = 1.0 - (distanceFromCenter * 0.3).clamp(0.0, 0.7);
-
-    return Opacity(
-      opacity: opacity,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-        child: Column(
-          children: [
-            Expanded(
-              child: _buildVideoPlayer(
-                videoData[2] as String,
-                scale,
-              ),
-            ),
-            if (distanceFromCenter < 0.5) ...[
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      spreadRadius: 1,
-                      blurRadius: 3,
-                      offset: const Offset(0, 1),
-                    ),
-                  ],
+      body: PageView.builder(
+        controller: _pageController,
+        scrollDirection: Axis.vertical,
+        itemCount: cameraData.length,
+        itemBuilder: (context, index) {
+          final video = cameraData[index];
+          return Column(
+            children: [
+              Expanded(
+                child: HtmlElementView(
+                  viewType: 'youtube-iframe-$index', // 動的にiframeを表示
                 ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
                 child: Column(
                   children: [
                     Text(
-                      videoData[1] as String,
+                      video['title']!,
                       style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+                          fontSize: 20, fontWeight: FontWeight.bold),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 8),
                     Text(
-                      'カテゴリ: ${videoData[3]}',
+                      'カテゴリ: ${video['category']}',
                       style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey,
-                      ),
+                          fontSize: 16, color: Colors.grey),
                     ),
                   ],
                 ),
               ),
             ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_cameraData.isEmpty) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    return Scaffold(
-      appBar: AppBar(title: const Text('ライブマップ')),
-      body: PageView.builder(
-        scrollDirection: Axis.horizontal,
-        onPageChanged: (index) {
-          setState(() {
-            _currentCategoryIndex = index;
-            _verticalController.jumpToPage(0);
-          });
-        },
-        itemCount: _categories.length,
-        itemBuilder: (context, categoryIndex) {
-          final categoryVideos = _getVideosForCategory(_categories[categoryIndex]);
-          
-          return PageView.builder(
-            controller: _verticalController,
-            scrollDirection: Axis.vertical,
-            itemCount: categoryVideos.length,
-            itemBuilder: (context, videoIndex) {
-              return _buildVideoItem(
-                categoryVideos[videoIndex],
-                videoIndex,
-                _currentPage,
-              );
-            },
           );
         },
       ),
