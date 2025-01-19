@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'dart:html' as html;
-import 'dart:ui' as ui;
+import 'package:webview_flutter/webview_flutter.dart';
 
 void main() {
   runApp(const MyApp());
@@ -26,10 +25,10 @@ class LiveCameraPage extends StatefulWidget {
   const LiveCameraPage({Key? key}) : super(key: key);
 
   @override
-  State<LiveCameraPage> createState() => _LiveCameraPageState();
+  State<LiveCameraPage> createState() => LiveCameraPageState();
 }
 
-class _LiveCameraPageState extends State<LiveCameraPage> {
+class LiveCameraPageState extends State<LiveCameraPage> {
   final List<Map<String, String>> cameraData = [
     {"title": "「LIVE CAMERA」草津温泉・温泉門 - YouTube", "category": "観光", "youtubeId": "d6a0sL8lYGkQ"},
     {"title": "「LIVECAMERA 」西の河原露天風呂入り口 - YouTube", "category": "観光", "youtubeId": "RJYYbPs8hjQ"},
@@ -51,72 +50,121 @@ class _LiveCameraPageState extends State<LiveCameraPage> {
     {"title": "【LIVE】明石海峡大橋ライブカメラ　瀬戸内海や淡路島の現在の様子　Akashi kaikyo Bridge and Awaji island - YouTube", "category": "海岸", "youtubeId": "TmoR3-XKgcI"},
   ];
 
-  late PageController _pageController;
+  late PageController horizontalController;
+  late PageController verticalController;
+
+  Map<String, List<Map<String, String>>> categorizedVideos = {};
+  String currentCategory = '';
+  int currentCategoryIndex = 0;
+  int currentVideoIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    _pageController = PageController();
-    _preloadVideos();
+
+    // カテゴリごとに動画を分類
+    for (var video in cameraData) {
+      categorizedVideos.putIfAbsent(video['category']!, () => []).add(video);
+    }
+
+    currentCategory = categorizedVideos.keys.first;
+    horizontalController = PageController();
+    verticalController = PageController();
+
+    // 最初の動画を読み込み
+    _preloadVideos(currentCategory, 0);
   }
 
-  /// iframeを登録して動画をプリロード
-  void _preloadVideos() {
-    for (int i = 0; i < cameraData.length; i++) {
-      final embedUrl =
-          'https://www.youtube.com/embed/${cameraData[i]['youtubeId']}?autoplay=0&rel=0&modestbranding=1';
+  @override
+  void dispose() {
+    horizontalController.dispose();
+    verticalController.dispose();
+    super.dispose();
+  }
 
-      // ignore: undefined_prefixed_name
-      ui.platformViewRegistry.registerViewFactory(
-        'youtube-iframe-$i',
-        (int viewId) {
-          return html.IFrameElement()
-            ..src = embedUrl
-            ..style.border = 'none'
-            ..allowFullscreen = true;
-        },
-      );
+  String getEmbedUrl(String youtubeId) {
+    return 'https://www.youtube.com/embed/$youtubeId?autoplay=1&rel=0&modestbranding=1&enablejsapi=1';
+  }
+
+  // 動画を事前読み込み
+  void _preloadVideos(String category, int startIndex) {
+    final videos = categorizedVideos[category]!;
+    final endIndex = (startIndex + 3).clamp(0, videos.length);
+    for (int i = startIndex; i < endIndex; i++) {
+      WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..loadRequest(Uri.parse(getEmbedUrl(videos[i]['youtubeId']!)));
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final categories = categorizedVideos.keys.toList();
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('ライブマップ'),
+        title: Text('ライブマップ - ${categories[currentCategoryIndex]}'),
       ),
       body: PageView.builder(
-        controller: _pageController,
-        scrollDirection: Axis.vertical,
-        itemCount: cameraData.length,
-        itemBuilder: (context, index) {
-          final video = cameraData[index];
-          return Column(
-            children: [
-              Expanded(
-                child: HtmlElementView(
-                  viewType: 'youtube-iframe-$index', // 動的にiframeを表示
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    Text(
-                      video['title']!,
-                      style: const TextStyle(
-                          fontSize: 20, fontWeight: FontWeight.bold),
+        controller: horizontalController,
+        scrollDirection: Axis.horizontal,
+        onPageChanged: (index) {
+          setState(() {
+            currentCategoryIndex = index;
+            currentCategory = categories[index];
+            verticalController.jumpToPage(0);
+          });
+          _preloadVideos(currentCategory, 0);
+        },
+        itemCount: categories.length,
+        itemBuilder: (context, categoryIndex) {
+          final videos = categorizedVideos[categories[categoryIndex]]!;
+          return PageView.builder(
+            controller: verticalController,
+            scrollDirection: Axis.vertical,
+            onPageChanged: (index) {
+              setState(() {
+                currentVideoIndex = index;
+              });
+              _preloadVideos(categories[categoryIndex], index + 1);
+            },
+            itemCount: videos.length,
+            itemBuilder: (context, videoIndex) {
+              final video = videos[videoIndex];
+              return Column(
+                children: [
+                  Expanded(
+                    child: WebViewWidget(
+                      controller: WebViewController()
+                        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+                        ..loadRequest(Uri.parse(getEmbedUrl(video['youtubeId']!))),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'カテゴリ: ${video['category']}',
-                      style: const TextStyle(
-                          fontSize: 16, color: Colors.grey),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      children: [
+                        Text(
+                          video['title']!,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'カテゴリ: ${video['category']}',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-            ],
+                  ),
+                ],
+              );
+            },
           );
         },
       ),
