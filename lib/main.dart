@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'live_camera_page.dart'; // ホーム画面
-import 'prefecture_list_page.dart'; // 都道府県一覧画面
+import 'live_camera_page.dart';
+import 'prefecture_list_page.dart';
 
 void main() {
   runApp(const MyApp());
@@ -33,18 +33,16 @@ class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
   final List<Widget> _pages = [
-    const LiveCameraPage(), // ホーム画面
-    const PrefectureListPage(), // 都道府県一覧画面
+    const LiveCameraPage(),
+    const PrefectureListPage(),
   ];
 
-  final List<String> _titles = ['ホーム', '都道府県一覧'];
+  final List<String> _titles = ['ライブマップ','ライブマップ'];
 
-  /// メニューバーの項目をタップしたときの処理
   void _onMenuItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
     });
-    Navigator.of(context).pop(); // ドロワーを閉じる
   }
 
   @override
@@ -53,35 +51,34 @@ class _MainScreenState extends State<MainScreen> {
       appBar: AppBar(
         title: Text(_titles[_selectedIndex]),
       ),
-      drawer: Drawer(
-        child: ListView(
-          children: [
-            const DrawerHeader(
-              decoration: BoxDecoration(
-                color: Colors.blue,
-              ),
-              child: Text(
-                'メニュー',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                ),
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.home),
-              title: const Text('ホーム'),
-              onTap: () => _onMenuItemTapped(0), // ホーム画面へ移動
-            ),
-            ListTile(
-              leading: const Icon(Icons.map),
-              title: const Text('都道府県一覧'),
-              onTap: () => _onMenuItemTapped(1), // 都道府県一覧画面へ移動
-            ),
-          ],
-        ),
+      body: Row(
+        children: [
+          _buildSideMenu(),
+          Expanded(
+            child: _pages[_selectedIndex],
+          ),
+        ],
       ),
-      body: _pages[_selectedIndex], // 現在選択中のページを表示
+    );
+  }
+
+  Widget _buildSideMenu() {
+    return Container(
+      width: 80,
+      color: Colors.black,
+      child: Column(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.home, color: Colors.white),
+            onPressed: () => _onMenuItemTapped(0),
+          ),
+          const SizedBox(height: 16),
+          IconButton(
+            icon: const Icon(Icons.map, color: Colors.white),
+            onPressed: () => _onMenuItemTapped(1),
+          ),
+        ],
+      ),
     );
   }
 }
